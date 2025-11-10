@@ -1,4 +1,5 @@
 import logging
+import os
 
 from dotenv import load_dotenv
 
@@ -16,7 +17,8 @@ from livekit.agents import (
     metrics,
 )
 from livekit.agents.llm import function_tool
-from livekit.plugins import silero
+from livekit.plugins import deepgram, silero
+from livekit.plugins.filler_remover import FillerRemoverSTT
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 # uncomment to enable Krisp background voice/noise cancellation
@@ -73,10 +75,20 @@ async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+
+    # a list of words to ignore
+    filler_words_str = os.environ.get("FILLER_WORDS", "uh,umm,hmm,haan")
+    filler_words = [word.strip() for word in filler_words_str.split(",")]
+
+    stt = FillerRemoverSTT(
+        underlying_stt=deepgram.STT(model="nova-2-general"),
+        filler_words=filler_words,
+    )
+
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
         # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt="assemblyai/universal-streaming:en",
+        stt=stt,
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
         llm="openai/gpt-4.1-mini",
